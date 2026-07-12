@@ -5,4 +5,4 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "journal-db"
-database_id = "PLACEHOLDER_REPLACED_BY_wrangler_d1_create"
+database_id = "b4bbb051-1b2e-4a05-84fb-3cbc2968208f"
