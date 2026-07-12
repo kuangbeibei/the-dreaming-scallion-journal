@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { Page } from '../types'
+import { useCallback, useEffect, useRef, useState, useReducer } from 'react'
+import type { JournalDoc, Page } from '../types'
 import { COVER_MS, FLIP_DUR_MS, PW, STORAGE_KEY } from '../lib/constants'
 import { nid } from '../lib/id'
 import { makeSeed } from '../lib/seed'
 import { usePaperSound } from './usePaperSound'
 import { journalReducer, type JournalState } from './journalReducer'
+import { clearPassword, getPassword, loadJournal, saveJournal, setPassword, UnauthorizedError } from '../lib/api'
 
 function init(): JournalState {
   let saved: Partial<JournalState> & { pages?: Page[] } = {}
@@ -29,6 +30,10 @@ function init(): JournalState {
   }
 }
 
+const docOf = (st: JournalState): JournalDoc => ({
+  pages: st.pages, sections: st.sections, bookmark: st.bookmark, soundOn: st.soundOn,
+})
+
 export function useJournal() {
   const [state, dispatch] = useReducer(journalReducer, undefined, init)
 
@@ -36,20 +41,77 @@ export function useJournal() {
   const stateRef = useRef(state)
   stateRef.current = state
 
+  // ---- server sync state ----
+  // locked: true when we have no valid password and must prompt before syncing.
+  const [locked, setLocked] = useState(false)
+  // Guards server writes until the initial server load has resolved, so a fresh
+  // device's cached/seed doc can't clobber the real server copy on mount.
+  const readyRef = useRef(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const play = usePaperSound(state.soundOn)
 
   const tokRef = useRef(0)
   const coverTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   const flipSafe = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ---- persistence ----
+  // ---- initial load from server (D1) ----
+  // Boots instantly from the localStorage cache (init), then reconciles with the
+  // server: hydrate when the server has a copy, or seed the server when it's empty.
   useEffect(() => {
+    let cancelled = false
+    async function boot() {
+      if (!getPassword()) { setLocked(true); return }
+      try {
+        const { doc } = await loadJournal()
+        if (cancelled) return
+        if (doc) dispatch({ type: 'hydrate', doc })
+        readyRef.current = true
+        if (!doc) { try { await saveJournal(docOf(stateRef.current)) } catch { /* retried on next edit */ } }
+      } catch (e) {
+        if (cancelled) return
+        if (e instanceof UnauthorizedError) { setLocked(true); return }
+        // Network/server error: keep working from the local cache; edits will retry.
+        readyRef.current = true
+      }
+    }
+    boot()
+    return () => { cancelled = true }
+  }, [])
+
+  // ---- persistence: localStorage cache (always) + debounced server save ----
+  useEffect(() => {
+    const doc = docOf(stateRef.current)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(doc)) } catch { /* ignore */ }
+
+    if (!readyRef.current || locked) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      saveJournal(docOf(stateRef.current)).catch((e) => {
+        if (e instanceof UnauthorizedError) setLocked(true)
+        // other errors: cache still holds it; next edit retries
+      })
+    }, 800)
+  }, [state.pages, state.sections, state.bookmark, state.soundOn, locked])
+
+  // ---- unlock: set the password, load, and start syncing ----
+  const unlock = useCallback(async (pw: string): Promise<boolean> => {
+    setPassword(pw)
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        pages: state.pages, sections: state.sections, bookmark: state.bookmark, soundOn: state.soundOn,
-      }))
-    } catch { /* ignore */ }
-  }, [state.pages, state.sections, state.bookmark, state.soundOn])
+      const { doc } = await loadJournal()
+      if (doc) dispatch({ type: 'hydrate', doc })
+      readyRef.current = true
+      setLocked(false)
+      if (!doc) { try { await saveJournal(docOf(stateRef.current)) } catch { /* retried on next edit */ } }
+      return true
+    } catch (e) {
+      if (e instanceof UnauthorizedError) { clearPassword(); return false }
+      // Non-auth error (e.g. offline): accept the password, proceed from cache.
+      readyRef.current = true
+      setLocked(false)
+      return true
+    }
+  }, [])
 
   // ---- transient focus key: clear shortly after it's applied ----
   useEffect(() => {
@@ -92,6 +154,7 @@ export function useJournal() {
   useEffect(() => () => {
     coverTimers.current.forEach(clearTimeout)
     if (flipSafe.current) clearTimeout(flipSafe.current)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
   }, [])
 
   // ---- navigation ----
@@ -266,6 +329,8 @@ export function useJournal() {
   return {
     state,
     dispatch,
+    locked,
+    unlock,
     canNext,
     onNext,
     onPrev,

@@ -1,4 +1,4 @@
-import type { Block, DocAction, Page, Section } from '../types'
+import type { Block, DocAction, JournalDoc, Page, Section } from '../types'
 import { BIG_STICKERS } from '../lib/constants'
 import { nid } from '../lib/id'
 
@@ -33,6 +33,7 @@ export interface JournalState {
 
 export type JournalAction =
   | DocAction
+  | { type: 'hydrate'; doc: JournalDoc }
   | { type: 'merge'; patch: Partial<JournalState> }
   | { type: 'mergeIfView'; view: View; patch: Partial<JournalState> }
   | { type: 'flipEnd' }
@@ -197,6 +198,10 @@ function docReducer(state: JournalState, a: DocAction): JournalState {
 
 export function journalReducer(state: JournalState, action: JournalAction): JournalState {
   switch (action.type) {
+    case 'hydrate': {
+      const { pages, sections, bookmark, soundOn } = action.doc
+      return { ...state, pages, sections, bookmark, soundOn }
+    }
     case 'merge':
       return { ...state, ...action.patch }
     case 'mergeIfView':

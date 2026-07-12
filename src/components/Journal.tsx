@@ -11,6 +11,7 @@ import SectionTabs, { type TabVM } from './SectionTabs'
 import Ribbon from './Ribbon'
 import ToolsPanel from './ToolsPanel'
 import Toolbar from './Toolbar'
+import LockScreen from './LockScreen'
 
 const EASE = 'cubic-bezier(.42,.06,.2,1)'
 const S = (PW + GUT) / 2
@@ -27,6 +28,7 @@ const faceBase: CSSProperties = {
  *  prototype's renderVals) and assembles the book, tools panel and toolbar. */
 export default function Journal() {
   const j = useJournal()
+  if (j.locked) return <LockScreen onUnlock={j.unlock} />
   const st = j.state
   const pages = st.pages
   const s = st.spread

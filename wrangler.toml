@@ -1,0 +1,8 @@
+name = "the-dreaming-scallion-journal"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "journal-db"
+database_id = "PLACEHOLDER_REPLACED_BY_wrangler_d1_create"

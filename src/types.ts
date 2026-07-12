@@ -75,6 +75,14 @@ export interface Section {
   color: string
 }
 
+/** The persisted document: everything saved to localStorage cache and the server. */
+export interface JournalDoc {
+  pages: Page[]
+  sections: Section[]
+  bookmark: number | null
+  soundOn: boolean
+}
+
 export type Side = 'left' | 'right'
 
 /** Actions that mutate the persisted document (pages/sections/etc.). */
