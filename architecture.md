@@ -40,10 +40,12 @@ atomically, it is stored as a single JSON blob rather than normalized tables.
 Browser (Cloudflare Pages, static SPA)
   │
   ├─ localStorage 'journal.v3'      ← instant-boot cache / offline copy
-  ├─ localStorage 'journal.password'← the shared password (Bearer token)
+  │                                   (no credentials stored client-side)
+  │
+  ├─ POST /api/login (password) ───► Pages Function → sets httpOnly session cookie
   │
   └─ fetch /api/journal  ──────────► Pages Function (functions/api/journal.ts)
-                                        │  Bearer-token auth vs JOURNAL_SECRET
+        (cookie sent automatically)   │  verifies signed session cookie vs JOURNAL_SECRET
                                         └─► Cloudflare D1 (binding: DB)
                                               table journal: one row id='me'
 ```
@@ -59,19 +61,27 @@ Browser (Cloudflare Pages, static SPA)
     (800 ms) `saveJournal()`** so rapid edits don't spam D1.
   - A `readyRef` guard prevents a fresh device's cache/seed from overwriting the real
     server copy before the initial load resolves.
-- `src/components/LockScreen.tsx` — password prompt shown when no password is cached or
-  the API returns `401`. On submit it caches the password and retries the load.
-- `src/lib/api.ts` — `loadJournal()` / `saveJournal()` plus password helpers; attaches
-  `Authorization: Bearer <password>`.
+- `src/components/LockScreen.tsx` — password prompt shown when the API returns `401`
+  (no valid session). On submit it calls `unlock()`, which logs in and retries the load.
+- `src/lib/api.ts` — `login()` / `logout()` / `loadJournal()` / `saveJournal()`. `login()`
+  POSTs the password to `/api/login`; the server sets an **httpOnly session cookie** that
+  the browser then attaches automatically. The password is never stored on the client.
 
-### Backend — Pages Function
-`functions/api/journal.ts` (compiled by Cloudflare, outside the app's tsconfig):
+### Backend — Pages Functions
+`functions/api/*.ts` (compiled by Cloudflare, outside the app's tsconfig), with shared
+session helpers in `lib/session.ts`:
 
-- **`GET /api/journal`** → `401` unless the Bearer token matches `env.JOURNAL_SECRET`;
-  else returns `{ doc, updated_at }` (or `{ doc: null }` when empty, so the client
-  falls back to the seed).
+- **`POST /api/login`** → constant-time compares the password to `env.JOURNAL_SECRET`;
+  on match, sets a signed, expiring **httpOnly session cookie** (`HttpOnly; Secure;
+  SameSite=Strict`, 30-day TTL) so JS can never read it. `401` otherwise.
+- **`POST /api/logout`** → clears the session cookie.
+- **`GET /api/journal`** → `401` unless the request carries a valid session cookie; else
+  returns `{ doc, updated_at }` (or `{ doc: null }` when empty, so the client falls back
+  to the seed).
 - **`PUT /api/journal`** → same auth; upserts the doc with `updated_at = Date.now()`.
-- Auth uses a constant-time string compare. D1 is reached via the `DB` binding.
+- The session token is an HMAC-SHA-256-signed payload carrying an expiry; verification
+  and the password compare both use a constant-time equality check. D1 is reached via the
+  `DB` binding.
 
 ### Database — D1 schema
 `schema.sql`:
@@ -89,8 +99,11 @@ One row (`id = 'me'`).
 ## Auth model
 
 A single shared password, stored as the Cloudflare Pages secret `JOURNAL_SECRET`. The
-client prompts for it once, caches it in `localStorage`, and sends it as a Bearer token;
-the Function compares server-side.
+client prompts for it once and POSTs it to `/api/login`; the Function compares it
+server-side and, on success, issues a signed, expiring **httpOnly session cookie**. The
+raw password is never persisted on the client — only the cookie, which JS cannot read
+and the browser sends automatically on same-origin requests. This is what protects the
+password from XSS / localStorage-scraping.
 
 **Honest limitation:** a static SPA cannot hide a secret, so this is a password *gate*
 (keeps random URL visitors out), not hardened multi-user auth. Appropriate for a

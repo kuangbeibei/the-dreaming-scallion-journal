@@ -1,10 +1,11 @@
 import type { JournalDoc } from '../types'
 
 // Talks to the /api/journal Pages Function. Single-user: the whole document is
-// sent/received as one JSON blob, gated by a shared password (Bearer token).
+// sent/received as one JSON blob. Auth is a session cookie set by /api/login —
+// the password is never stored on the client, and the cookie is httpOnly so JS
+// cannot read it; the browser sends it automatically on same-origin requests.
 
 const ENDPOINT = '/api/journal'
-const PASSWORD_KEY = 'journal.password'
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -13,21 +14,19 @@ export class UnauthorizedError extends Error {
   }
 }
 
-export function getPassword(): string | null {
-  try { return localStorage.getItem(PASSWORD_KEY) } catch { return null }
+/** Exchange the password for a session cookie. Returns false on wrong password. */
+export async function login(password: string): Promise<boolean> {
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+  return res.ok
 }
 
-export function setPassword(pw: string): void {
-  try { localStorage.setItem(PASSWORD_KEY, pw) } catch { /* ignore */ }
-}
-
-export function clearPassword(): void {
-  try { localStorage.removeItem(PASSWORD_KEY) } catch { /* ignore */ }
-}
-
-function authHeaders(): Record<string, string> {
-  const pw = getPassword()
-  return pw ? { authorization: 'Bearer ' + pw } : {}
+/** Clear the session cookie server-side. */
+export async function logout(): Promise<void> {
+  try { await fetch('/api/logout', { method: 'POST' }) } catch { /* ignore */ }
 }
 
 export interface LoadResult {
@@ -37,7 +36,7 @@ export interface LoadResult {
 
 /** Fetch the server copy. Throws UnauthorizedError on 401 so callers can prompt. */
 export async function loadJournal(): Promise<LoadResult> {
-  const res = await fetch(ENDPOINT, { headers: authHeaders() })
+  const res = await fetch(ENDPOINT)
   if (res.status === 401) throw new UnauthorizedError()
   if (!res.ok) throw new Error('load failed: ' + res.status)
   return (await res.json()) as LoadResult
@@ -47,7 +46,7 @@ export async function loadJournal(): Promise<LoadResult> {
 export async function saveJournal(doc: JournalDoc): Promise<number> {
   const res = await fetch(ENDPOINT, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(doc),
   })
   if (res.status === 401) throw new UnauthorizedError()

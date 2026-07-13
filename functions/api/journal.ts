@@ -2,6 +2,9 @@
 
 // Cloudflare Pages Function backing GET/PUT /api/journal.
 // Single-user: one row (id = 'me') holds the whole journal document as JSON.
+// Auth is a signed session cookie (see functions/api/login.ts + lib/session.ts).
+
+import { COOKIE_NAME, getCookie, verifySessionToken } from '../../lib/session'
 
 interface Env {
   DB: D1Database
@@ -16,22 +19,13 @@ const json = (data: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json; charset=utf-8' },
   })
 
-/** Constant-time string compare to avoid leaking the secret via timing. */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return diff === 0
-}
-
-function authed(request: Request, env: Env): boolean {
-  const header = request.headers.get('authorization') || ''
-  const token = header.replace(/^Bearer\s+/i, '')
-  return Boolean(env.JOURNAL_SECRET) && safeEqual(token, env.JOURNAL_SECRET)
+function authed(request: Request, env: Env): Promise<boolean> {
+  if (!env.JOURNAL_SECRET) return Promise.resolve(false)
+  return verifySessionToken(env.JOURNAL_SECRET, getCookie(request, COOKIE_NAME))
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  if (!authed(request, env)) return json({ error: 'unauthorized' }, 401)
+  if (!(await authed(request, env))) return json({ error: 'unauthorized' }, 401)
 
   const row = await env.DB
     .prepare('SELECT doc, updated_at FROM journal WHERE id = ?')
@@ -47,7 +41,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 }
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
-  if (!authed(request, env)) return json({ error: 'unauthorized' }, 401)
+  if (!(await authed(request, env))) return json({ error: 'unauthorized' }, 401)
 
   let body: unknown
   try { body = await request.json() } catch { return json({ error: 'invalid json' }, 400) }

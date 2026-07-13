@@ -165,7 +165,7 @@ export default function Journal() {
       width: 40, height: 84, border: 'none', cursor: 'pointer',
       writingMode: 'vertical-rl', textOrientation: 'mixed',
       background: TAB_PALETTE[i % TAB_PALETTE.length], color: '#fbf6e7',
-      font: "400 14px 'Special Elite',monospace", letterSpacing: '1px',
+      font: "400 14px 'Special Elite','ZCOOL KuaiLe',monospace", letterSpacing: '1px',
       borderRadius: '0 8px 8px 0', padding: '10px 0',
       boxShadow: (active ? '0 6px 16px rgba(0,0,0,0.4)' : '0 4px 10px rgba(0,0,0,0.28)') + ', inset 0 0 0 1px rgba(255,255,255,0.12)',
       opacity: active ? 1 : 0.78, transition: 'right .18s ease, opacity .18s ease',
@@ -195,7 +195,7 @@ export default function Journal() {
     background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(58,55,48,0.32)',
     transition: 'color .15s ease',
   }
-  const chevStyle: CSSProperties = { font: '400 30px Caveat,cursive', color: 'inherit', lineHeight: 1, marginTop: -4 }
+  const chevStyle: CSSProperties = { font: "400 30px Caveat,'ZCOOL KuaiLe',cursive", color: 'inherit', lineHeight: 1, marginTop: -4 }
 
   // ---- content tools ----
   const lpid = leftPage?.id, rpid = rightPage?.id
@@ -329,7 +329,7 @@ export default function Journal() {
         soundLabel={soundLabel} closeLabel={closeLabel}
         onPrev={j.onPrev} onNext={j.onNext} onAddPage={j.onAddPage} onGoLast={j.onGoLast}
         onRibbon={j.onRibbon} onToggleSound={j.onToggleSound} onCloseBook={j.onCloseBook}
-        onPageKey={j.onPageKey}
+        onLock={j.lock} onPageKey={j.onPageKey}
       />
     </div>
   )

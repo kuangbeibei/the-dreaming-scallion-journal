@@ -12,6 +12,7 @@ interface Props {
   onRibbon: () => void
   onToggleSound: () => void
   onCloseBook: () => void
+  onLock: () => void
   onPageKey: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }
 
@@ -26,7 +27,7 @@ const DIV = 'mx-1 h-[26px] w-px bg-[rgba(255,255,255,0.16)]'
 /** Bottom navigation bar: page turns, go-to, add/bookmark/sound/close. */
 export default function Toolbar({
   pageLabel, totalPages, bookmarkLabel, bookmarkMarked, soundLabel, closeLabel,
-  onPrev, onNext, onAddPage, onGoLast, onRibbon, onToggleSound, onCloseBook, onPageKey,
+  onPrev, onNext, onAddPage, onGoLast, onRibbon, onToggleSound, onCloseBook, onLock, onPageKey,
 }: Props) {
   return (
     <div className="flex items-center gap-[10px] rounded-[40px] bg-gradient-to-b from-navy-panel to-navy-deep px-[14px] py-[9px] shadow-[0_12px_26px_-12px_rgba(8,10,30,0.6),inset_0_1px_1px_rgba(255,255,255,0.08)]">
@@ -44,6 +45,8 @@ export default function Toolbar({
       <button onClick={onRibbon} className={bookmarkMarked ? BTN_MARKED : BTN}>{bookmarkLabel}</button>
       <button onClick={onToggleSound} className={BTN}>{soundLabel}</button>
       <button onClick={onCloseBook} className={BTN}>{closeLabel}</button>
+      <div className={DIV} />
+      <button onClick={onLock} title="lock the journal" className={BTN}>lock ⌂</button>
     </div>
   )
 }

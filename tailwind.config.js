@@ -4,8 +4,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        hand: ['Caveat', 'cursive'],
-        type: ["'Special Elite'", 'monospace'],
+        // Caveat covers Latin; CJK glyphs (which Caveat lacks) fall through to
+        // ZCOOL KuaiLe, a cute handwritten Chinese face, before generic cursive.
+        hand: ['Caveat', "'ZCOOL KuaiLe'", 'cursive'],
+        type: ["'Special Elite'", "'ZCOOL KuaiLe'", 'monospace'],
       },
       colors: {
         ink: '#3a3730',

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useReducer } from 'react'
 import type { JournalDoc, Page } from '../types'
-import { COVER_MS, FLIP_DUR_MS, PW, STORAGE_KEY } from '../lib/constants'
+import { COVER_MS, FLIP_DUR_MS, STORAGE_KEY } from '../lib/constants'
 import { nid } from '../lib/id'
 import { makeSeed } from '../lib/seed'
 import { usePaperSound } from './usePaperSound'
 import { journalReducer, type JournalState } from './journalReducer'
-import { clearPassword, getPassword, loadJournal, saveJournal, setPassword, UnauthorizedError } from '../lib/api'
+import { loadJournal, login, logout, saveJournal, UnauthorizedError } from '../lib/api'
 
 function init(): JournalState {
   let saved: Partial<JournalState> & { pages?: Page[] } = {}
@@ -42,7 +42,7 @@ export function useJournal() {
   stateRef.current = state
 
   // ---- server sync state ----
-  // locked: true when we have no valid password and must prompt before syncing.
+  // locked: true when we have no valid session and must prompt before syncing.
   const [locked, setLocked] = useState(false)
   // Guards server writes until the initial server load has resolved, so a fresh
   // device's cached/seed doc can't clobber the real server copy on mount.
@@ -61,7 +61,8 @@ export function useJournal() {
   useEffect(() => {
     let cancelled = false
     async function boot() {
-      if (!getPassword()) { setLocked(true); return }
+      // The httpOnly session cookie (if any) rides along automatically; a missing
+      // or expired one surfaces as a 401 below and drops us to the lock screen.
       try {
         const { doc } = await loadJournal()
         if (cancelled) return
@@ -94,23 +95,44 @@ export function useJournal() {
     }, 800)
   }, [state.pages, state.sections, state.bookmark, state.soundOn, locked])
 
-  // ---- unlock: set the password, load, and start syncing ----
+  // ---- unlock: exchange the password for a session cookie, load, start syncing ----
   const unlock = useCallback(async (pw: string): Promise<boolean> => {
-    setPassword(pw)
     try {
-      const { doc } = await loadJournal()
-      if (doc) dispatch({ type: 'hydrate', doc })
-      readyRef.current = true
-      setLocked(false)
-      if (!doc) { try { await saveJournal(docOf(stateRef.current)) } catch { /* retried on next edit */ } }
-      return true
-    } catch (e) {
-      if (e instanceof UnauthorizedError) { clearPassword(); return false }
-      // Non-auth error (e.g. offline): accept the password, proceed from cache.
+      // Server verifies the password and sets an httpOnly cookie; the password
+      // itself is never kept on the client.
+      if (!(await login(pw))) return false // wrong password → stay locked
+    } catch {
+      // Couldn't reach the server to verify (offline): let the user in to work
+      // from the local cache; the next online request re-checks the session.
       readyRef.current = true
       setLocked(false)
       return true
     }
+    try {
+      const { doc } = await loadJournal()
+      if (doc) dispatch({ type: 'hydrate', doc })
+      if (!doc) { try { await saveJournal(docOf(stateRef.current)) } catch { /* retried on next edit */ } }
+    } catch (e) {
+      if (e instanceof UnauthorizedError) return false
+      // Non-auth error (offline after login): proceed from the local cache.
+    }
+    readyRef.current = true
+    setLocked(false)
+    return true
+  }, [])
+
+  // ---- lock: flush the latest edit, drop the session, return to the gate ----
+  const lock = useCallback(() => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    const wasReady = readyRef.current
+    readyRef.current = false // block further saves until the next unlock
+    setLocked(true)          // shows the LockScreen immediately
+    // Flush any pending edit so the server copy is current, then clear the
+    // httpOnly cookie server-side. Backgrounded so locking feels instant.
+    void (async () => {
+      if (wasReady) { try { await saveJournal(docOf(stateRef.current)) } catch { /* cache still holds it */ } }
+      await logout()
+    })()
   }, [])
 
   // ---- transient focus key: clear shortly after it's applied ----
@@ -331,6 +353,7 @@ export function useJournal() {
     dispatch,
     locked,
     unlock,
+    lock,
     canNext,
     onNext,
     onPrev,
@@ -344,6 +367,5 @@ export function useJournal() {
     toggleTools,
     closeTools,
     onCloseBook,
-    PW,
   }
 }
