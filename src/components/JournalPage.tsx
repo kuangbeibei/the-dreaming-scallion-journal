@@ -13,12 +13,13 @@ interface Props {
   activeBlockId?: string | null
   folio?: number | null
   side?: Side
+  onDeletePage?: (pageId: string) => void
 }
 
 const noop: Dispatch = () => {}
 
 /** A single journal page: date header, block stack, sticker layer, folio number. */
-export default function JournalPage({ page = null, readonly, dispatch, focusKey, activeBlockId, folio, side }: Props) {
+export default function JournalPage({ page = null, readonly, dispatch, focusKey, activeBlockId, folio, side, onDeletePage }: Props) {
   const ro = !!readonly
   const d = ro ? noop : (dispatch || noop)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -114,6 +115,17 @@ export default function JournalPage({ page = null, readonly, dispatch, focusKey,
         <div className="font-hand text-[23px] font-medium" style={folioStyle}>
           {String(folio)}
         </div>
+      )}
+
+      {!ro && onDeletePage && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDeletePage(pid) }}
+          title="delete this page"
+          aria-label="delete this page"
+          className="absolute left-[14px] top-[14px] z-10 flex h-[26px] w-[26px] items-center justify-center rounded-full text-[15px] leading-none text-[rgba(58,55,48,0.28)] transition-colors hover:bg-[rgba(180,85,63,0.12)] hover:text-[rgba(180,85,63,0.95)]"
+        >
+          🗑
+        </button>
       )}
     </div>
   )

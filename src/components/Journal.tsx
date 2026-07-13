@@ -234,6 +234,7 @@ export default function Journal() {
                 <JournalPage
                   page={leftPage} dispatch={j.dispatch} focusKey={st.focusKey}
                   activeBlockId={st.activeBlockId} folio={leftFolio} side="left"
+                  onDeletePage={isOpen && pages.length > 1 ? j.deletePage : undefined}
                 />
               )}
             </div>
@@ -249,6 +250,7 @@ export default function Journal() {
                 <JournalPage
                   page={rightPage} dispatch={j.dispatch} focusKey={st.focusKey}
                   activeBlockId={st.activeBlockId} folio={rightFolio} side="right"
+                  onDeletePage={isOpen && pages.length > 1 ? j.deletePage : undefined}
                 />
               )}
               {showEndBack && <EndPage />}

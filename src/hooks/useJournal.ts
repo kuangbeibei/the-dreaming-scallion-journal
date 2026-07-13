@@ -336,6 +336,28 @@ export function useJournal() {
     }
   }, [state.pages, onNext])
 
+  // ---- delete a specific page (by id, from its own on-page delete button) ----
+  const deletePage = useCallback((pageId: string) => {
+    const st = stateRef.current
+    if (st.view !== 'open' || st.flip || st.pages.length <= 1) return
+    const idx = st.pages.findIndex((p) => p.id === pageId)
+    if (idx < 0) return
+    const page = st.pages[idx]
+
+    // Blank pages (the usual "oops, added too many") delete silently; pages with
+    // real content ask first so a note isn't lost by accident.
+    const blank = (page.blocks?.length ?? 0) === 0 && (page.stickers?.length ?? 0) === 0 && !page.date
+    if (!blank && !window.confirm('Delete this page and everything on it?')) return
+
+    const pages = st.pages.slice()
+    pages.splice(idx, 1)
+    const maxSpread = Math.max(0, Math.floor((pages.length - 1) / 2))
+    const spread = Math.min(st.spread, maxSpread)
+    const bookmark = st.bookmark !== null && st.bookmark > maxSpread ? null : st.bookmark
+    play('page')
+    dispatch({ type: 'merge', patch: { pages, spread, bookmark, activePageId: null, activeBlockId: null, focusKey: null } })
+  }, [play])
+
   const onRibbon = useCallback(() => {
     const st = stateRef.current
     if (st.view !== 'open') return
@@ -362,6 +384,7 @@ export function useJournal() {
     jumpToSection,
     onCoverClick,
     onAddPage,
+    deletePage,
     onRibbon,
     onToggleSound,
     toggleTools,
