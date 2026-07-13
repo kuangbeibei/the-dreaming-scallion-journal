@@ -1,33 +1,6 @@
-import { useState } from 'react'
 import type { Dispatch, TodoBlock as TodoBlockModel } from '../../types'
 import { hexToRgba } from '../../lib/color'
 import { focusRef } from './focusRef'
-
-/** Copy the whole list to the clipboard as a markdown task list. */
-async function copyItems(items: { text: string; done: boolean }[]): Promise<boolean> {
-  const text = items
-    .filter((it) => (it.text || '').trim() !== '')
-    .map((it) => `- [${it.done ? 'x' : ' '}] ${it.text}`)
-    .join('\n')
-  if (!text) return false
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    // Fallback for browsers/contexts without the async clipboard API.
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(ta)
-      return ok
-    } catch { return false }
-  }
-}
 
 interface Props {
   block: TodoBlockModel
@@ -41,15 +14,6 @@ interface Props {
 export default function TodoBlock({ block, pageId, ro, focused, dispatch, focusKey }: Props) {
   const bc = block.color || '#3a3730'
   const bcSoft = hexToRgba(bc, 0.5)
-  const [copied, setCopied] = useState(false)
-  const hasItems = (block.items || []).some((it) => (it.text || '').trim() !== '')
-
-  const onCopyAll = async () => {
-    if (await copyItems(block.items || [])) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1200)
-    }
-  }
   return (
     <>
       {(block.items || []).map((it, i) => {
@@ -89,26 +53,13 @@ export default function TodoBlock({ block, pageId, ro, focused, dispatch, focusK
           </div>
         )
       })}
-      {!ro && (focused || hasItems) && (
-        <div className="ml-[35px] mt-[2px] flex items-center gap-4">
-          {focused && (
-            <button
-              onClick={() => dispatch({ type: 'addTodo', pageId, blockId: block.id })}
-              className="border-none bg-transparent py-[2px] font-hand text-[20px] text-[rgba(58,55,48,0.4)]"
-            >
-              + add item
-            </button>
-          )}
-          {hasItems && (
-            <button
-              onClick={onCopyAll}
-              title="copy the whole list"
-              className="border-none bg-transparent py-[2px] font-hand text-[18px] text-[rgba(58,55,48,0.4)]"
-            >
-              {copied ? '✓ copied' : '⧉ copy all'}
-            </button>
-          )}
-        </div>
+      {!ro && focused && (
+        <button
+          onClick={() => dispatch({ type: 'addTodo', pageId, blockId: block.id })}
+          className="ml-[35px] mt-[2px] border-none bg-transparent py-[2px] font-hand text-[20px] text-[rgba(58,55,48,0.4)]"
+        >
+          + add item
+        </button>
       )}
     </>
   )

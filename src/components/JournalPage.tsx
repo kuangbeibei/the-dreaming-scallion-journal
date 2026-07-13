@@ -50,7 +50,7 @@ export default function JournalPage({ page = null, readonly, dispatch, focusKey,
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-page" onMouseDown={onBgDown}>
+    <div className="group relative h-full w-full overflow-hidden bg-page" onMouseDown={onBgDown}>
       <div className="pointer-events-none absolute inset-0" style={{ background: bg }} />
       <div
         className="pointer-events-none absolute inset-0"
@@ -122,7 +122,7 @@ export default function JournalPage({ page = null, readonly, dispatch, focusKey,
           onClick={(e) => { e.stopPropagation(); onDeletePage(pid) }}
           title="delete this page"
           aria-label="delete this page"
-          className="absolute left-[14px] top-[14px] z-10 flex h-[26px] w-[26px] items-center justify-center rounded-full text-[15px] leading-none text-[rgba(58,55,48,0.28)] transition-colors hover:bg-[rgba(180,85,63,0.12)] hover:text-[rgba(180,85,63,0.95)]"
+          className="absolute left-[14px] top-[14px] z-10 flex h-[26px] w-[26px] items-center justify-center rounded-full text-[15px] leading-none text-[rgba(58,55,48,0.45)] opacity-0 transition-opacity duration-150 hover:bg-[rgba(180,85,63,0.12)] hover:text-[rgba(180,85,63,0.95)] focus:opacity-100 group-hover:opacity-100"
         >
           🗑
         </button>
